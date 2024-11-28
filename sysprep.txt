@@ -1,0 +1,3 @@
+sysprep /generalize /oobe /shutdown /unattend:C:\autounattend.xml
+
+Optimize-VHD -Path "C:\path\to\BaseImage.vhdx" -Mode Full

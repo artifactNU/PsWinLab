@@ -19,6 +19,7 @@
                     <PlainText>true</PlainText>
                 </AdministratorPassword>
             </UserAccounts>
+            <TimeZone>W. Europe Standard Time</TimeZone>
         </component>
     </settings>
 </unattend>
