@@ -7,7 +7,7 @@ $BaseVHDPath = "C:\Users\Administrator\Desktop\workspace\PswinLab\BaseImage.vhdx
 $Win10BaseVHDPath = "C:\Users\Administrator\Desktop\workspace\PswinLab\Win10BaseImage.vhdx" # Path to Windows 10 base VHDX
 $VMBasePath = "C:\Users\Administrator\Desktop\workspace\PswinLab\VM"                       # Base path for all VM folders
 $MemoryStartupBytes = 4GB                     # Startup memory for the VMs
-$Win10MemoryStartupBytes = 2GB                # Startup memory for Windows 10 client
+$Win10MemoryStartupBytes = 4GB                # Startup memory for Windows 10 client
 $SwitchName = "Intel(R) Ethernet Connection (2) I219-LM - Virtual Switch"  # Network switch
 
 # Kontrollera att bas VHD-filerna existerar
