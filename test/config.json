@@ -1,0 +1,43 @@
+{
+  "DomainPassword": "Linux4Ever",
+  "SubnetMask": "255.255.255.0",
+  "DomainName": "acme.local",
+  "Gateway": "10.6.67.1",
+  "DomainAdmin": "ACME\\Administrator",
+  "VMs": {
+    "DC1": {
+      "Gateway": "10.6.67.1",
+      "IPAddress": "10.6.67.210",
+      "DNS": [
+        "10.6.67.210"
+      ],
+      "Subnet": "255.255.255.0"
+    },
+    "Win10Client": {
+      "Gateway": "10.6.67.1",
+      "IPAddress": "10.6.67.213",
+      "DNS": [
+        "10.6.67.210"
+      ],
+      "Subnet": "255.255.255.0"
+    },
+    "Server1": {
+      "Gateway": "10.6.67.1",
+      "IPAddress": "10.6.67.211",
+      "DNS": [
+        "10.6.67.210"
+      ],
+      "Subnet": "255.255.255.0"
+    },
+    "Server2": {
+      "Gateway": "10.6.67.1",
+      "IPAddress": "10.6.67.212",
+      "DNS": [
+        "10.6.67.210"
+      ],
+      "Subnet": "255.255.255.0"
+    }
+  },
+  "LocalPassword": "Linux4Ever",
+  "NetBIOSName": "ACME"
+}
