@@ -100,14 +100,14 @@ $vmConfigurationsBlock = @"
     }
 "@
 
-# Path to the 3IPNAMECONF.ps1 script
-$scriptPath = ".\\3IPNAMECONF.ps1"
+# Path to the 03IPNAMECONF.ps1 script
+$scriptPath = ".\\03IPNAMECONF.ps1"
 if (-Not (Test-Path $scriptPath)) {
-    Write-Error "3IPNAMECONF.ps1 not found in the current directory. Ensure the script exists."
+    Write-Error "03IPNAMECONF.ps1 not found in the current directory. Ensure the script exists."
     exit
 }
 
-# Read the contents of 3IPNAMECONF.ps1
+# Read the contents of 03IPNAMECONF.ps1
 $scriptContent = Get-Content $scriptPath -Raw
 
 # Find the position to insert the new configuration
@@ -119,5 +119,5 @@ $updatedContent = $scriptContent.Insert($insertPosition, $vmConfigurationsBlock)
 # Write the updated content back to the file
 Set-Content -Path $scriptPath -Value $updatedContent
 
-Write-Host "3IPNAMECONF.ps1 updated with the new configuration."
-Write-Host "You can now run the updated 3IPNAMECONF.ps1 script."
+Write-Host "03IPNAMECONF.ps1 updated with the new configuration."
+Write-Host "You can now run the updated 03IPNAMECONF.ps1 script."

@@ -9,7 +9,8 @@ $config = Get-Content -Path $configFilePath | ConvertFrom-Json
 # Domain Configuration Variables
 $DomainName = $config.DomainName
 $NetBIOSName = $DomainName.Split('.')[0].ToUpper()  # Derive NetBIOS name from domain name
-$SafeModePassword = "Linux4Ever"  # DSRM password (can be modified to fetch from config.json if needed)
+$DomainPassword = $config.DomainPassword
+$SecureDomainPassword = ConvertTo-SecureString $DomainPassword -AsPlainText -Force
 $LocalPassword = $config.LocalPassword
 $SecureLocalPassword = ConvertTo-SecureString $LocalPassword -AsPlainText -Force
 $LocalCredential = New-Object System.Management.Automation.PSCredential ("Administrator", $SecureLocalPassword)
@@ -55,13 +56,10 @@ function Configure-DomainController {
         [string]$DCName,
         [string]$DomainName,
         [string]$NetBIOSName,
-        [string]$SafeModePassword
+        [securestring]$SecureDomainPassword
     )
 
     Write-Host "Starting domain configuration on $DCName..."
-
-    # Convert SafeModePassword to SecureString
-    $SecureSafeModePassword = ConvertTo-SecureString $SafeModePassword -AsPlainText -Force
 
     # Install AD DS role
     Write-Host "Installing AD DS role on $DCName..."
@@ -72,21 +70,21 @@ function Configure-DomainController {
     # Configure the domain and promote the server to a domain controller
     Write-Host "Promoting $DCName to a Domain Controller for domain $DomainName..."
     Invoke-Command -VMName $DCName -Credential $LocalCredential -ScriptBlock {
-        param ($DomainName, $NetBIOSName, $SecureSafeModePassword)
+        param ($DomainName, $NetBIOSName, $SecureDomainPassword)
         Import-Module ADDSDeployment
         Install-ADDSForest `
             -DomainName $DomainName `
             -DomainNetbiosName $NetBIOSName `
-            -SafeModeAdministratorPassword $SecureSafeModePassword `
+            -SafeModeAdministratorPassword $SecureDomainPassword `
             -Force `
             -InstallDns
-    } -ArgumentList $DomainName, $NetBIOSName, $SecureSafeModePassword
+    } -ArgumentList $DomainName, $NetBIOSName, $SecureDomainPassword
 
     Write-Host "Domain Controller configuration on $DCName is complete."
 }
 
 # Configure DC1
-Configure-DomainController -DCName "DC1" -DomainName $DomainName -NetBIOSName $NetBIOSName -SafeModePassword $SafeModePassword
+Configure-DomainController -DCName "DC1" -DomainName $DomainName -NetBIOSName $NetBIOSName -SecureDomainPassword $SecureDomainPassword
 
 # Wait for DC1 to be fully operational
 Wait-ForDCReadiness -DCName "DC1"

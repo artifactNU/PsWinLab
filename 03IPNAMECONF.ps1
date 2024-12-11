@@ -1,9 +1,18 @@
 $VMConfigurations = @{}
 
-# Hardcoded password for all VMs
-$Password = "Linux4Ever"
-$SecurePassword = ConvertTo-SecureString $Password -AsPlainText -Force
-$Credential = New-Object System.Management.Automation.PSCredential ("Administrator", $SecurePassword)
+# Load the configuration from config.json
+$configFilePath = ".\\config.json"
+if (-Not (Test-Path $configFilePath)) {
+    Write-Error "Configuration file not found at $configFilePath. Please ensure itW exists."
+    exit
+}
+$config = Get-Content -Path $configFilePath | ConvertFrom-Json
+
+# Extract the LocalPassword from the configuration
+$localPassword = $config.LocalPassword
+$secureLocalPassword = ConvertTo-SecureString $localPassword -AsPlainText -Force
+$credential = New-Object System.Management.Automation.PSCredential ("Administrator", $secureLocalPassword)
+
 
 function Convert-SubnetMaskToPrefixLength {
     param ([string]$SubnetMask)
@@ -25,7 +34,7 @@ function Set-VMStaticIPAndRename {
         Start-Sleep -Seconds 30
 
         # Remote execution to set IP and rename computer
-        Invoke-Command -VMName $VMName -Credential $Credential -ScriptBlock {
+        Invoke-Command -VMName $VMName -Credential $credential -ScriptBlock {
             param ($NewComputerName, $IPAddress, $Subnet, $Gateway, $DNS)
 
             # Rename the computer
@@ -77,6 +86,5 @@ foreach ($VMName in $VMConfigurations.Keys) {
 }
 
 Write-Host "Static IP and computer name configuration complete."
-
 
 
