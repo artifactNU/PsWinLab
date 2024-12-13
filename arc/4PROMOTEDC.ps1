@@ -1,18 +1,9 @@
-# Load the configuration
-$configFilePath = ".\\config.json"
-if (-Not (Test-Path $configFilePath)) {
-    Write-Error "Configuration file not found at $configFilePath. Please run 0CONFIG.ps1 first."
-    exit
-}
-$config = Get-Content -Path $configFilePath | ConvertFrom-Json
-
 # Domain Configuration Variables
-$DomainName = $config.DomainName
-$NetBIOSName = $DomainName.Split('.')[0].ToUpper()  # Derive NetBIOS name from domain name
-$SafeModePassword = "Linux4Ever"  # DSRM password (can be modified to fetch from config.json if needed)
-$LocalPassword = $config.LocalPassword
-$SecureLocalPassword = ConvertTo-SecureString $LocalPassword -AsPlainText -Force
-$LocalCredential = New-Object System.Management.Automation.PSCredential ("Administrator", $SecureLocalPassword)
+$DomainName = "acme.local"
+$NetBIOSName = "ACME"
+$SafeModePassword = "Linux4Ever"  # DSRM password
+$LocalPassword = ConvertTo-SecureString "Linux4Ever" -AsPlainText -Force
+$LocalCredential = New-Object System.Management.Automation.PSCredential ("Administrator", $LocalPassword)
 
 # Function to Wait for DC1 to Be Fully Operational
 function Wait-ForDCReadiness {
@@ -26,7 +17,7 @@ function Wait-ForDCReadiness {
     $StartTime = Get-Date
     while ((Get-Date) - $StartTime -lt (New-TimeSpan -Seconds $TimeoutSeconds)) {
         try {
-            $DomainCredential = New-Object System.Management.Automation.PSCredential ("$NetBIOSName\\Administrator", $SecureLocalPassword)
+            $DomainCredential = New-Object System.Management.Automation.PSCredential ("ACME\Administrator", $LocalPassword)
 
             # Check if DC1 services (NTDS, DNS) are running
             $ServicesReady = Invoke-Command -ComputerName $DCName -Credential $DomainCredential -ScriptBlock {

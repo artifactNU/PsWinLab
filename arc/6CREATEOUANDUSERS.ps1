@@ -1,33 +1,18 @@
-# Load the configuration
-$configFilePath = ".\\config.json"
-if (-Not (Test-Path $configFilePath)) {
-    Write-Error "Configuration file not found at $configFilePath. Please run 0CONFIG.ps1 first."
-    exit
-}
-$config = Get-Content -Path $configFilePath | ConvertFrom-Json
-
-# Prompt for credentials dynamically
-$DomainName = $config.DomainName
-$DomainAdmin = $config.DomainAdmin
-$DomainPassword = $config.DomainPassword
-$SecureDomainPassword = ConvertTo-SecureString $DomainPassword -AsPlainText -Force
-$Credential = New-Object System.Management.Automation.PSCredential ($DomainAdmin, $SecureDomainPassword)
-
-# Target computer (e.g., DC IP address)
-$TargetComputer = $config.VMs.DC1.IPAddress
+# Prompt for credentials
+$Credential = Get-Credential
 
 # Configure PowerShell remoting on the local and remote machine
 Write-Host "Configuring PowerShell remoting..." -ForegroundColor Cyan
 
 # Allow remote connections on the target machine
-Invoke-Command -ComputerName $TargetComputer -Credential $Credential -ScriptBlock {
+Invoke-Command -ComputerName 10.6.67.210 -Credential $Credential -ScriptBlock {
     Enable-PSRemoting -Force
     Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
     Restart-Service WinRM
 } -ErrorAction SilentlyContinue
 
 # Add the remote server to TrustedHosts on the local machine
-Set-Item WSMan:\localhost\Client\TrustedHosts -Value $TargetComputer -Force
+Set-Item WSMan:\localhost\Client\TrustedHosts -Value "10.6.67.210" -Force
 
 # Restart the WinRM service on the local machine
 Restart-Service WinRM
@@ -35,7 +20,7 @@ Restart-Service WinRM
 # Define the script block
 $RemoteScript = {
     param(
-        [string]$OUBase = "DC=acme,DC=local"
+        [string]$OUBase = "OU=NewDivision,DC=acme,DC=local"
     )
 
     Import-Module ActiveDirectory
@@ -43,10 +28,10 @@ $RemoteScript = {
     # Ensure required OUs exist
     Write-Host "Ensuring OUs exist..." -ForegroundColor Cyan
     $OUs = @(
-        @{ Name = "NewDivision"; Path = $OUBase },
-        @{ Name = "HR"; Path = "OU=NewDivision,$OUBase" },
-        @{ Name = "Finance"; Path = "OU=NewDivision,$OUBase" },
-        @{ Name = "IT"; Path = "OU=NewDivision,$OUBase" }
+        @{ Name = "NewDivision"; Path = "DC=acme,DC=local" },
+        @{ Name = "HR"; Path = "OU=NewDivision,DC=acme,DC=local" },
+        @{ Name = "Finance"; Path = "OU=NewDivision,DC=acme,DC=local" },
+        @{ Name = "IT"; Path = "OU=NewDivision,DC=acme,DC=local" }
     )
 
     foreach ($OU in $OUs) {
@@ -90,7 +75,7 @@ $RemoteScript = {
                 # Create the new user
                 Write-Host "Creating user: $Name in OU: $UserOU"
                 New-ADUser -Name $Name -SamAccountName $SamAccountName `
-                           -UserPrincipalName "$SamAccountName@$($DomainName)" `
+                           -UserPrincipalName "$SamAccountName@acme.local" `
                            -Path $UserOU -AccountPassword (ConvertTo-SecureString $Password -AsPlainText -Force) `
                            -Enabled $true
             } else {
@@ -105,4 +90,4 @@ $RemoteScript = {
 }
 
 # Execute the script block on the VM
-Invoke-Command -ComputerName $TargetComputer -Credential $Credential -ScriptBlock $RemoteScript -ArgumentList "DC=acme,DC=local"
+Invoke-Command -ComputerName 10.6.67.210 -Credential $Credential -ScriptBlock $RemoteScript -ArgumentList "OU=NewDivision,DC=acme,DC=local"

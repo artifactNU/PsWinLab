@@ -1,24 +1,41 @@
-# Load the configuration
-$configFilePath = ".\\config.json"
-if (-Not (Test-Path $configFilePath)) {
-    Write-Error "Configuration file not found at $configFilePath. Please run 0CONFIG.ps1 first."
-    exit
+$VMConfigurations = @{
+    "DC1"        = @{
+        IPAddress = "10.6.67.210"
+        Subnet    = "255.255.255.0"
+        Gateway   = "10.6.67.1"
+        DNS       = @("10.6.67.210")
+    }
+    "Server1"    = @{
+        IPAddress = "10.6.67.211"
+        Subnet    = "255.255.255.0"
+        Gateway   = "10.6.67.1"
+        DNS       = @("10.6.67.210")
+    }
+    "Server2"    = @{
+        IPAddress = "10.6.67.212"
+        Subnet    = "255.255.255.0"
+        Gateway   = "10.6.67.1"
+        DNS       = @("10.6.67.210")
+    }
+    "Win10Client" = @{
+        IPAddress = "10.6.67.213"
+        Subnet    = "255.255.255.0"
+        Gateway   = "10.6.67.1"
+        DNS       = @("10.6.67.210")
+    }
 }
-$config = Get-Content -Path $configFilePath | ConvertFrom-Json
 
-# Use the local password from the config file
-$Password = $config.LocalPassword
+# Hardcoded password for all VMs
+$Password = "Linux4Ever"
 $SecurePassword = ConvertTo-SecureString $Password -AsPlainText -Force
 $Credential = New-Object System.Management.Automation.PSCredential ("Administrator", $SecurePassword)
 
-# Function to convert subnet mask to prefix length
 function Convert-SubnetMaskToPrefixLength {
     param ([string]$SubnetMask)
     $binarySubnet = ($SubnetMask -split '\.' | ForEach-Object { [convert]::ToString([int]$_, 2).PadLeft(8, '0') })
     return ($binarySubnet -join '' -split '1').Length - 1
 }
 
-# Function to set static IP and rename VM
 function Set-VMStaticIPAndRename {
     param (
         [string]$VMName,
@@ -52,6 +69,12 @@ function Set-VMStaticIPAndRename {
                 Write-Host "IP Address $IPAddress already exists. Skipping configuration."
             } else {
                 # Convert subnet to prefix length
+                function Convert-SubnetMaskToPrefixLength {
+                    param ([string]$SubnetMask)
+                    $binarySubnet = ($SubnetMask -split '\.' | ForEach-Object { [convert]::ToString([int]$_, 2).PadLeft(8, '0') })
+                    return ($binarySubnet -join '' -split '1').Length - 1
+                }
+
                 $prefixLength = Convert-SubnetMaskToPrefixLength -SubnetMask $Subnet
                 New-NetIPAddress -IPAddress $IPAddress -PrefixLength $prefixLength -DefaultGateway $Gateway -InterfaceIndex $interface.IfIndex
                 Set-DnsClientServerAddress -InterfaceIndex $interface.IfIndex -ServerAddresses $DNS
@@ -67,15 +90,15 @@ function Set-VMStaticIPAndRename {
     }
 }
 
-# Loop through VM configurations from the config file and apply settings
-foreach ($VMName in $config.VMs.Keys) {
-    $vmConfig = $config.VMs[$VMName]
+# Loop through configurations and rename computers while setting static IP
+foreach ($VMName in $VMConfigurations.Keys) {
+    $config = $VMConfigurations[$VMName]
     Set-VMStaticIPAndRename -VMName $VMName `
                             -NewComputerName $VMName `
-                            -IPAddress $vmConfig.IPAddress `
-                            -Subnet $vmConfig.Subnet `
-                            -Gateway $vmConfig.Gateway `
-                            -DNS $vmConfig.DNS
+                            -IPAddress $config.IPAddress `
+                            -Subnet $config.Subnet `
+                            -Gateway $config.Gateway `
+                            -DNS $config.DNS
 }
 
 Write-Host "Static IP and computer name configuration complete."
