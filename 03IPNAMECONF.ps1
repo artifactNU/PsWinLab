@@ -88,3 +88,6 @@ foreach ($VMName in $VMConfigurations.Keys) {
 Write-Host "Static IP and computer name configuration complete."
 
 
+
+
+

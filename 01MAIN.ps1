@@ -15,7 +15,7 @@ Write-Host "Step 1: Creating Virtual Machines..." -ForegroundColor Cyan
 # Skapa tre Generation 1 virtuella maskiner och en Windows 10 klient i Hyper-V
 
 # Call the script block or function for creating VMs
-.\2CLIENTDCSRV12.ps1
+.\02CLIENTDCSRV12.ps1
 
 # Define total time (7 minutes in seconds) and intervals
 $TotalSeconds = 420
@@ -47,7 +47,7 @@ Wait-ForUserConfirmation "Virtual Machines are created. Press Enter to proceed t
 Write-Host "Step 2: Configuring Static IPs and Renaming Computers..." -ForegroundColor Cyan
 
 # Script 3
-.\3IPNAMECONF.ps1
+.\03IPNAMECONF.ps1
 
 # Define total time (1 minutes in seconds) and intervals
 $TotalSeconds = 60
@@ -79,7 +79,7 @@ Write-Host "Step 3: Promoting DC1 to Domain Controller..." -ForegroundColor Cyan
 
 # Script 4
 # Call the script block or function for domain controller promotion
-.\4PROMOTEDC.ps1
+.\04PROMOTEDC.ps1
 
 # Define total time (11 minutes in seconds) and intervals
 $TotalSeconds = 480
@@ -111,7 +111,7 @@ Write-Host "Step 4: Joining Computers to the Domain..." -ForegroundColor Cyan
 
 # Script 5
 # Call the script block or function for domain join
-.\5JOINDOMAIN.ps1
+.\05JOINDOMAIN.ps1
 
 # Define total time (1 minutes in seconds) and intervals
 $TotalSeconds = 60
@@ -137,7 +137,11 @@ Wait-ForUserConfirmation "Computers have joined the domain. Press Enter to proce
 
 # Script 6
 # Create OUs and Users
-.\6CREATEOUANDUSERS.ps1
+.\06CREATEOUANDUSERS.ps1
+
+.\07SHARE.ps1
+
+.\08WEBSERVER.ps1
 
 Write-Host "Step 5 completed: OU and users where created." -ForegroundColor Green
 Write-Host "All steps completed successfully!" -ForegroundColor Green

@@ -6,103 +6,145 @@ if (-Not (Test-Path $configFilePath)) {
 }
 $config = Get-Content -Path $configFilePath | ConvertFrom-Json
 
-# Prompt for credentials dynamically
+# Extract domain information
 $DomainName = $config.DomainName
+$DomainDN = "DC=$($DomainName.Split('.')[0]),DC=$($DomainName.Split('.')[1])"
 $DomainAdmin = $config.DomainAdmin
 $DomainPassword = $config.DomainPassword
 $SecureDomainPassword = ConvertTo-SecureString $DomainPassword -AsPlainText -Force
 $Credential = New-Object System.Management.Automation.PSCredential ($DomainAdmin, $SecureDomainPassword)
 
-# Target computer (e.g., DC IP address)
+if (-Not $Credential) {
+    Write-Error "Credential creation failed. Verify DomainAdmin and DomainPassword."
+    exit
+}
+
+# Target computer (DC IP address from config)
 $TargetComputer = $config.VMs.DC1.IPAddress
+if (-not $TargetComputer) {
+    Write-Error "No IPAddress found for DC1 in the config.json. Please specify it."
+    exit
+}
 
-# Configure PowerShell remoting on the local and remote machine
-Write-Host "Configuring PowerShell remoting..." -ForegroundColor Cyan
+Write-Host "Target DC IP: $TargetComputer" -ForegroundColor Cyan
 
-# Allow remote connections on the target machine
-Invoke-Command -ComputerName $TargetComputer -Credential $Credential -ScriptBlock {
-    Enable-PSRemoting -Force
-    Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
-    Restart-Service WinRM
-} -ErrorAction SilentlyContinue
+# Add the target to TrustedHosts if needed
+$trustedHosts = (Get-Item WSMan:\localhost\Client\TrustedHosts -ErrorAction Ignore).Value
+if ($trustedHosts -notlike "*$TargetComputer*") {
+    Write-Host "Adding $TargetComputer to TrustedHosts..."
+    if ([string]::IsNullOrEmpty($trustedHosts)) {
+        Set-Item WSMan:\localhost\Client\TrustedHosts -Value $TargetComputer -Force
+    } else {
+        Set-Item WSMan:\localhost\Client\TrustedHosts -Value "$trustedHosts,$TargetComputer" -Force
+    }
+}
 
-# Add the remote server to TrustedHosts on the local machine
-Set-Item WSMan:\localhost\Client\TrustedHosts -Value $TargetComputer -Force
+# Verify existing connection to the target computer
+Write-Host "Verifying network connectivity to $TargetComputer..." -ForegroundColor Cyan
+if (-Not (Test-Connection -ComputerName $TargetComputer -Count 1 -Quiet)) {
+    Write-Error "Cannot connect to $TargetComputer. Verify network and firewall settings."
+    exit
+}
 
-# Restart the WinRM service on the local machine
-Restart-Service WinRM
+# Test if remoting is already functional
+Write-Host "Testing existing PowerShell remoting connection to $TargetComputer..." -ForegroundColor Cyan
+$ConnectionTest = $null
+try {
+    $ConnectionTest = Invoke-Command -ComputerName $TargetComputer -Credential $Credential -ScriptBlock { "Test Passed" } -ErrorAction Stop
+} catch {
+    Write-Host "Remoting not functional, configuring PowerShell remoting..." -ForegroundColor Yellow
+}
 
-# Define the script block
-$RemoteScript = {
-    param(
-        [string]$OUBase = "DC=acme,DC=local"
-    )
-
-    Import-Module ActiveDirectory
-
-    # Ensure required OUs exist
-    Write-Host "Ensuring OUs exist..." -ForegroundColor Cyan
-    $OUs = @(
-        @{ Name = "NewDivision"; Path = $OUBase },
-        @{ Name = "HR"; Path = "OU=NewDivision,$OUBase" },
-        @{ Name = "Finance"; Path = "OU=NewDivision,$OUBase" },
-        @{ Name = "IT"; Path = "OU=NewDivision,$OUBase" }
-    )
-
-    foreach ($OU in $OUs) {
-        try {
-            if (-not (Get-ADOrganizationalUnit -Filter "Name -eq '$($OU.Name)'" -SearchBase $OU.Path -ErrorAction SilentlyContinue)) {
-                Write-Host "Creating OU: $($OU.Name) under $($OU.Path)"
-                New-ADOrganizationalUnit -Name $OU.Name -Path $OU.Path
+if ($ConnectionTest -eq "Test Passed") {
+    Write-Host "PowerShell remoting is already functional. Skipping configuration." -ForegroundColor Green
+} else {
+    # Configure PowerShell remoting
+    Write-Host "Forcefully configuring PowerShell remoting on $TargetComputer..." -ForegroundColor Cyan
+    try {
+        Invoke-Command -ComputerName $TargetComputer -Credential $Credential -ScriptBlock {
+            Enable-PSRemoting -Force
+            if (-not (Get-NetFirewallRule -Name "Allow WinRM" -ErrorAction SilentlyContinue)) {
+                New-NetFirewallRule -Name "Allow WinRM" -DisplayName "Allow WinRM" -Protocol TCP -LocalPort 5985 -Action Allow -Enabled True
+                Write-Host "Firewall rule for WinRM added."
             } else {
-                Write-Host "OU already exists: $($OU.Name)"
+                Write-Host "Firewall rule for WinRM already exists."
             }
-        } catch {
-            Write-Host "Failed to create or verify OU: $($OU.Name). Error: $_"
-        }
+            Restart-Service WinRM
+        } -ErrorAction Stop
+    } catch {
+        Write-Error "Failed to configure PowerShell remoting on $TargetComputer : $_"
+        exit
     }
 
-    # Define users to create
-    $Users = @(
-        @{ Name = "John Doe"; SamAccountName = "jdoe"; Password = "P@ssw0rd123"; OU = "OU=HR" },
-        @{ Name = "Jane Smith"; SamAccountName = "jsmith"; Password = "P@ssw0rd123"; OU = "OU=Finance" },
-        @{ Name = "Alice Brown"; SamAccountName = "abrown"; Password = "P@ssw0rd123"; OU = "OU=IT" },
-        @{ Name = "Bob White"; SamAccountName = "bwhite"; Password = "P@ssw0rd123"; OU = "OU=IT" },
-        @{ Name = "Carol Green"; SamAccountName = "cgreen"; Password = "P@ssw0rd123"; OU = "OU=HR" },
-        @{ Name = "David Black"; SamAccountName = "dblack"; Password = "P@ssw0rd123"; OU = "OU=Finance" },
-        @{ Name = "Eve Adams"; SamAccountName = "eadams"; Password = "P@ssw0rd123"; OU = "OU=IT" },
-        @{ Name = "Frank Blue"; SamAccountName = "fblue"; Password = "P@ssw0rd123"; OU = "OU=IT" },
-        @{ Name = "Grace Red"; SamAccountName = "gred"; Password = "P@ssw0rd123"; OU = "OU=Finance" },
-        @{ Name = "Hannah Yellow"; SamAccountName = "hyellow"; Password = "P@ssw0rd123"; OU = "OU=HR" },
-        @{ Name = "Isaac Gray"; SamAccountName = "igray"; Password = "P@ssw0rd123"; OU = "OU=Finance" }
-    )
+    # Retest connectivity
+    $ConnectionTest = Invoke-Command -ComputerName $TargetComputer -Credential $Credential -ScriptBlock { "Test Passed" } -ErrorAction Stop
+    if ($ConnectionTest -eq "Test Passed") {
+        Write-Host "Remoting functional after configuration." -ForegroundColor Green
+    } else {
+        Write-Error "Unable to establish a working PowerShell remoting session to $TargetComputer."
+        exit
+    }
+}
 
-    # Add users to respective OUs
-    foreach ($user in $Users) {
-        $UserOU = "$($user.OU),$OUBase"
-        $SamAccountName = $user.SamAccountName
-        $Name = $user.Name
-        $Password = $user.Password
+# Define Organizational Units (OUs) and Users
+$OUs = @(
+    @{ Name = "NewDivision"; Path = $DomainDN },
+    @{ Name = "HR"; Path = "OU=NewDivision,$DomainDN" },
+    @{ Name = "Finance"; Path = "OU=NewDivision,$DomainDN" },
+    @{ Name = "IT"; Path = "OU=NewDivision,$DomainDN" }
+)
 
-        try {
-            # Check if user already exists
-            if (-not (Get-ADUser -Filter "SamAccountName -eq '$SamAccountName'" -ErrorAction SilentlyContinue)) {
-                # Create the new user
-                Write-Host "Creating user: $Name in OU: $UserOU"
+$Users = @(
+    @{ Name = "John Doe"; SamAccountName = "jdoe"; Password = "P@ssw0rd123"; OU = "OU=HR,OU=NewDivision,$DomainDN" },
+    @{ Name = "Jane Smith"; SamAccountName = "jsmith"; Password = "P@ssw0rd123"; OU = "OU=Finance,OU=NewDivision,$DomainDN" },
+    @{ Name = "Alice Brown"; SamAccountName = "abrown"; Password = "P@ssw0rd123"; OU = "OU=IT,OU=NewDivision,$DomainDN" },
+    @{ Name = "Bob White"; SamAccountName = "bwhite"; Password = "P@ssw0rd123"; OU = "OU=IT,OU=NewDivision,$DomainDN" }
+)
+
+# Create OUs
+Write-Host "Creating Organizational Units..." -ForegroundColor Cyan
+foreach ($OU in $OUs) {
+    try {
+        Invoke-Command -ComputerName $TargetComputer -Credential $Credential -ScriptBlock {
+            param ($OUName, $OUPath)
+            Import-Module ActiveDirectory
+            if (-not (Get-ADOrganizationalUnit -Filter { Name -eq $OUName } -SearchBase $OUPath -ErrorAction SilentlyContinue)) {
+                New-ADOrganizationalUnit -Name $OUName -Path $OUPath
+                Write-Host "Created OU: $OUName in $OUPath"
+            } else {
+                Write-Host "OU already exists: $OUName in $OUPath"
+            }
+        } -ArgumentList $OU.Name, $OU.Path -ErrorAction Stop
+    } catch {
+        Write-Error "Failed to create OU $($OU.Name): $_"
+    }
+}
+
+# Create Users
+Write-Host "Creating Users..." -ForegroundColor Cyan
+foreach ($User in $Users) {
+    try {
+        Invoke-Command -ComputerName $TargetComputer -Credential $Credential -ScriptBlock {
+            param ($UserArgs, $DomainName)
+            Import-Module ActiveDirectory
+            $SamAccountName = $UserArgs["SamAccountName"]
+            $Name = $UserArgs["Name"]
+            $Password = $UserArgs["Password"]
+            $OU = $UserArgs["OU"]
+
+            if (-not (Get-ADUser -Filter { SamAccountName -eq $SamAccountName } -ErrorAction SilentlyContinue)) {
                 New-ADUser -Name $Name -SamAccountName $SamAccountName `
-                           -UserPrincipalName "$SamAccountName@$($DomainName)" `
-                           -Path $UserOU -AccountPassword (ConvertTo-SecureString $Password -AsPlainText -Force) `
+                           -UserPrincipalName "$SamAccountName@$DomainName" `
+                           -Path $OU -AccountPassword (ConvertTo-SecureString $Password -AsPlainText -Force) `
                            -Enabled $true
+                Write-Host "Created user: $Name in OU: $OU"
             } else {
                 Write-Host "User already exists: $SamAccountName"
             }
-        } catch {
-            Write-Host "Failed to create user: $Name. Error: $_"
-        }
+        } -ArgumentList $User, $DomainName -ErrorAction Stop
+    } catch {
+        Write-Error "Failed to create user $($User.Name): $_"
     }
-
-    Write-Host "OU structure and users creation complete." -ForegroundColor Green
 }
 
-# Execute the script block on the VM
-Invoke-Command -ComputerName $TargetComputer -Credential $Credential -ScriptBlock $RemoteScript -ArgumentList "DC=acme,DC=local"
+Write-Host "OU structure and user creation complete." -ForegroundColor Green
